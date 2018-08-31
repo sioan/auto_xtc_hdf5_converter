@@ -4,6 +4,9 @@
 !/**/
 !*.*
 
+# gedit temp
+*~
+
 # Compiled source #
 ###################
 *.com
@@ -45,7 +48,4 @@
 *.hdf5
 *.glu
 
-# temporary #
-#############
-*.py~
 

@@ -370,6 +370,7 @@ def generic_acqiris_analyzer(detectorObject,thisEvent):
 
 	return fit_results
 
+
 def getAndorFVBImage(detectorObject,thisEvent):
 	
 	selfName = detectorObject['self_name']
@@ -386,9 +387,38 @@ def getAndorFVBImage(detectorObject,thisEvent):
 	
 	return my_dict
 
+
 def getMonoEncoderValues(detectorObject,thisEvent):
 	selfName = detectorObject['self_name']
 	to_return = [0.0,0.0,0.0,0.0]
 	if(None != detectorObject[selfName].values(thisEvent)):
 		to_return = detectorObject[selfName].values(thisEvent)
 	return to_return
+
+
+
+def miniTOF(detobj, thisEvent):
+	selfName = detobj['self_name']
+	minitof_volts_raw = detobj[selfName].waveform(thisEvent)
+	if minitof_volts_raw is None:
+		return None
+	minitof_volts = minitof_volts_raw[2]  # channel 3
+	#iTOF_yield = np.mean(minitof_volts[6700:8000]) - np.mean(minitof_volts[-1000:])
+	bg = np.mean(minitof_volts[-1000:])
+	return dict(volts=minitof_volts-bg, bg=bg)
+
+
+def pnccd_image(detobj, thisEvent):
+	selfName = detobj['self_name']
+	image = detobj[selfName].image(thisEvent)
+	if image is None:
+		return None
+	return dict(image=image)
+
+
+
+
+
+
+
+

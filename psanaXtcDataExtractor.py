@@ -71,14 +71,14 @@ def makeDataSourceAndSmallData(experimentNameAndRun,h5FileName,ttDevice,ttCode):
 
 		print("defining small data")
 		if(h5FileName!="None"):
-			smldata = myDataSource.small_data(small_hdf5_dir+"/"+h5FileName)
+			smldata = myDataSource.small_data(small_hdf5_dir+"/"+h5FileName, gather_interval=10)
 	else:
 		print("loading mpi data source")
 		myDataSource = psana.MPIDataSource(experimentNameAndRun)
 
 		print("defining small data. hook in place ")
 		if(h5FileName!="None"):
-			smldata = myDataSource.small_data(small_hdf5_dir+"/"+h5FileName)
+			smldata = myDataSource.small_data(small_hdf5_dir+"/"+h5FileName, gather_interval=10)
 
 
 	return (myDataSource,smldata)
