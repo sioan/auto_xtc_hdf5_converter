@@ -4,6 +4,7 @@ import IPython
 from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
 import h5py
+import numpy as np
 from psmon.plots import MultiPlot,Image,XYPlot
 from psmon import publish
 import time
@@ -407,19 +408,19 @@ def get_raw_acq(detectorObject,thisEvent):
 	return my_dict
 
 def getAndorFVBImage(detectorObject,thisEvent):
-
+	'''
+	get the andor profile, if camera was used in Full Vertical Binning mode.
+	'''
 	selfName = detectorObject['self_name']
 	myImage = detectorObject[selfName].raw(thisEvent)
 	my_dict = {}
-
 
 	if None == myImage:
 		my_dict['image'] = zeros(2048)
 		#print("None")
 	else:
-		my_dict['image'] = myImage[0]
+		my_dict['image'] = np.sum(myImage, axis=0)
 		#print(myImage.shape)
-
 	return my_dict
 
 
@@ -450,6 +451,70 @@ def pnccd_image(detobj, thisEvent):
 	return dict(image=image)
 
 
+def opal_image(detobj, thisEvent):
+	selfName = detobj['self_name']
+	image = detobj[selfName].raw(thisEvent)
+	if image is None:
+		return None
+	return dict(image=image)
+
+
+roidict1 = dict()
+roidict1[6] = slice(480, 580)
+roidict1[3] = slice(550, 650)  # stability test
+roidict2 = dict()
+roidict2[6] = slice(630, 730)
+for i in range(1, 200):
+	roidict1[i] = roidict1[6]
+	roidict2[i] = roidict2[6]
+roidict1[11] = slice(330, 430)
+roidict2[11] = slice(470, 570)
+for i in range(11, 200):
+	roidict1[i] = roidict1[11]
+	roidict2[i] = roidict2[11]
+roidict1[32] = slice(470, 570) 
+roidict2[32] = slice(620, 720)
+for i in range(32, 200):
+	roidict1[i] = roidict1[32]
+	roidict2[i] = roidict2[32]
+
+
+def opal_roi1(detobj, thisEvent):
+	return _opal_roi(detobj, thisEvent, roidict1)
+
+def opal_profile1(detobj, thisEvent):
+	img = opal_roi1(detobj, thisEvent)
+	if img is None:
+		return None
+	return np.mean(img, axis=0)
+
+def opal_profile2(detobj, thisEvent):
+	img = opal_roi2(detobj, thisEvent)
+	if img is None:
+		return None
+	return np.mean(img, axis=0)
+
+def opal_roi2(detobj, thisEvent):
+	return _opal_roi(detobj, thisEvent, roidict2)
+
+def _opal_roi(detobj, thisEvent, roidict):
+	'''
+	Returns only an ROI for the specified image.
+	Cannot be used as analysis function.
+	Use opal_roi1 and opal_roi2 instead.
+	'''
+	selfName = detobj['self_name']
+	image = detobj[selfName].raw(thisEvent)
+	if image is None:
+		return None
+	run = thisEvent.run()
+	if run not in roidict:
+		return None
+	roi = roidict[run]
+	return np.asarray(image)[roi]
+
+
+
 def plot_acqiris(detectorObject,thisEvent):
 	selfName = detectorObject['self_name']
 	y = detectorObject[selfName](thisEvent)[0][1]
@@ -457,6 +522,7 @@ def plot_acqiris(detectorObject,thisEvent):
 	if(None != y):
 		to_plot = XYPlot(time.time(),"x vs y", arange(len(y)),y)
 		publish.send('my_plot',to_plot)
+
 
 def plot_acqiris_mpi(detectorObject,thisEvent):
 
@@ -466,7 +532,6 @@ def plot_acqiris_mpi(detectorObject,thisEvent):
 
 	selfName = detectorObject['self_name']
 	y = detectorObject[selfName](thisEvent)[0][1]
-
 
 
 	all_traces = {}
@@ -487,8 +552,6 @@ def plot_acqiris_mpi(detectorObject,thisEvent):
 				pass
 
 		print(len(gatheredSummary))
-
-
 
 
 def getAndorFVB_detCount(detectorObject,thisEvent):
