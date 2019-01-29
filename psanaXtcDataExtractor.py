@@ -1,4 +1,4 @@
-#!/reg/g/psdm/sw/conda/inst/miniconda2-prod-rhel7/envs/ana-1.3.58/bin/python
+#!/reg/g/psdm/sw/conda/inst/miniconda2-prod-rhel7/envs/ana-1.4.2/bin/python
 
 #--------------------------------------------------------------------------
 # File and Version Information:
@@ -202,7 +202,7 @@ def main(myExp, myRun, configFileName,h5FileName,testSample,ttDevice,ttCode,star
 	myEnumeratedEvents = enumerate(myDataSource.events())
 	for eventNumber,thisEvent in myEnumeratedEvents:
 		if(eventNumber %messageFeedBackRate == 1):
-			print("iterating over enumerated events. Rank = "+str(myRank)+" Event number = "+str(myRank+eventNumber)+" Elapsed Time (s) = "+str(time.time()-startTime))
+			print("iterating over enumerated events. Rank = "+str(myRank)+" Event number = "+str(myRank+eventNumber)+" Time: "+str(time.ctime()))
 			
 		if(eventNumber<startEvent):
 			continue
