@@ -3,12 +3,17 @@ import psana
 import IPython
 from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
+from scipy.ndimage import filters
+from scipy.ndimage import measurements
+from scipy import signal
+
 import h5py
 import numpy as np
 from psmon.plots import MultiPlot,Image,XYPlot
 from psmon import publish
 import time
 from mpi4py import MPI
+
 
 ######################################################
 #######Using the eigen traces#########################
@@ -177,6 +182,119 @@ def genericReturn(detectorObject,thisEvent):
 	selfName = detectorObject['self_name']
 	return detectorObject[selfName](thisEvent)
 
+def get_tss_projection(detectorObject,thisEvent):
+
+	selfName = detectorObject['self_name']
+	myImage = detectorObject[selfName].raw(thisEvent)
+
+	my_dict = {}
+
+
+	if None == myImage:
+		my_dict['proj_1'] = (zeros(1024))
+		my_dict['proj_2'] = (zeros(1024))
+	else:
+		my_dict['proj_1'] = sum(myImage[210:],axis=0)
+		my_dict['proj_2'] = sum(myImage[210:300],axis=0)
+
+	return my_dict
+
+def get_blob_stats(my_image,smoothing_kernel_width,fluence_cut_off_low,fluence_cut_off_high):
+
+
+    #smoothing kernel for determining blob locations
+    my_kernel = my_image*0.0
+    #smoothing_kernel_width = 10
+    #fluence_cut_off_low = 7000
+    #fluence_cut_off_high = 40000
+    
+    my_kernel[512-smoothing_kernel_width:512+smoothing_kernel_width,512-smoothing_kernel_width:512+smoothing_kernel_width] = 1.0
+    my_kernel = my_kernel/np.sum(my_kernel)
+
+
+    my_filtered_image = signal.fftconvolve(my_kernel,my_image,mode='same')
+
+    #masking off regions with no photons
+
+    binary_image = np.zeros(my_filtered_image.shape)
+    binary_image[ my_filtered_image<37.5] = 0 
+    binary_image[ my_filtered_image>37.5] = 1 
+
+    #masking off regions with no photons.
+    
+    lw, num = measurements.label(binary_image)
+
+    cluster_labels = set(lw[200:920,175:910].flatten())
+
+
+
+    # ## getting statistics on the blobs
+
+    # In[103]:
+
+
+
+    my_dict = {}
+    my_dict['integrated_intensity'] = []
+    my_dict['centroid'] = []
+    my_dict['variance'] = []
+
+    x = np.arange(my_image.shape[0])
+    y = np.arange(my_image.shape[1])
+
+    xv,yv = np.meshgrid(x,y)
+
+    for i in cluster_labels:
+        temp_mask = (lw== i)
+        integrated_intensity = np.sum(my_image[temp_mask])
+        centroid = np.array([np.sum((xv*my_image)[temp_mask]),np.sum((yv*my_image)[temp_mask])])/integrated_intensity
+        variance = np.array([np.sum(((xv-centroid[0])**2*my_image)[temp_mask]),np.sum(((yv-centroid[1])*my_image)[temp_mask])])/integrated_intensity
+
+        my_dict['integrated_intensity'].append(integrated_intensity)
+        my_dict['centroid'].append(centroid)
+        my_dict['variance'].append(variance)
+
+    my_dict['integrated_intensity'] = np.array(my_dict['integrated_intensity'])
+    my_dict['centroid']             = np.array(my_dict['centroid'])
+    my_dict['variance']             = np.array(my_dict['variance'])
+
+
+    return my_dict
+
+def blobbifier(detectorObject,thisEvent):
+
+	selfName = detectorObject['self_name']
+	myImage = detectorObject[selfName].raw(thisEvent)
+
+	max_photons = 40
+	smoothing_kernel_width = 10
+	fluence_cut_off_low = 7000
+	fluence_cut_off_high = 40000
+
+	my_dict = {'integrated_intensity':np.zeros(max_photons),
+				'centroid':np.zeros([max_photons,2]),
+				'variance':np.zeros([max_photons,2])}
+
+
+	if None == myImage:
+		pass
+		#my_dict['proj_2'] = (zeros(1024))
+	else:
+		my_dict = get_blob_stats(myImage,smoothing_kernel_width, fluence_cut_off_low,fluence_cut_off_high)
+		#my_dict['proj_2'] = sum(myImage[210:300],axis=0)
+
+	#preventing ragged arrays
+	temp_dict = my_dict.copy()
+	for i in temp_dict:
+		x = temp_dict[i].copy()
+		if(len(x.shape)>1):
+			x.resize(max_photons,x.shape[1])
+		else:
+			x.resize(max_photons)
+
+		my_dict[i] = x
+
+	return my_dict
 
 def get_projection(detectorObject,thisEvent):
 
@@ -246,6 +364,7 @@ def getPeak(detectorObject,thisEvent):
 
 
 	return fit_results
+
 
 def accumulateAverageWave(detectorObject,thisEvent,previousProcessing):
 	selfName = detectorObject['self_name']
@@ -381,10 +500,10 @@ def get_raw_acq(detectorObject,thisEvent):
 	mask_dict['hsd',3] = [2000,2750]
 	mask_dict['hsd',4] = [2000,2750]
 
-	mask_dict['acq02',1] = [750,2000]
-	mask_dict['acq02',2] = [750,2000]
-	mask_dict['acq02',3] = [750,2000]
-	mask_dict['acq02',4] = [750,2000]
+	mask_dict['acq01',1] = [1150,1300,1]
+	mask_dict['acq01',2] = [1150,1300,1]
+	mask_dict['acq01',3] = [1150,1300,1]
+	mask_dict['acq01',4] = [1,2,1]
 
 	selfName = detectorObject['self_name']
 	my_dict = {}
@@ -400,7 +519,6 @@ def get_raw_acq(detectorObject,thisEvent):
 	
 	
 	for i in arange(0,len(the_wave_forms)):
-
 		y = the_wave_forms[i]
 
 		my_dict['ch'+str(i+1)] = y[mask_dict[selfName,i+1][0]:mask_dict[selfName,i+1][1] ]
@@ -555,12 +673,12 @@ def plot_acqiris_mpi(detectorObject,thisEvent):
 
 
 def getAndorFVB_detCount(detectorObject,thisEvent):
-	#IPython.embed()
+
 	selfName = detectorObject['self_name']
 	myImage = detectorObject[selfName].raw(thisEvent)
 	my_dict = {}
 
-	#IPython.embed()
+
 	if None == myImage:
 		my_dict['image'] = zeros(2048)*1.0
 		my_dict['photon_count'] = zeros(2048)*1.0
