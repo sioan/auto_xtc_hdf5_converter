@@ -544,7 +544,7 @@ def getAndorFVBImage(detectorObject,thisEvent):
 
 def getMonoEncoderValues(detectorObject,thisEvent):
 	selfName = detectorObject['self_name']
-	to_return = [0.0,0.0,0.0,0.0]
+	to_return = np.array([0.0,0.0,0.0,0.0])
 	if(None != detectorObject[selfName].values(thisEvent)):
 		to_return = detectorObject[selfName].values(thisEvent)
 	return to_return
